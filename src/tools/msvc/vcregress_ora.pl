@@ -1,8 +1,8 @@
 # -*-perl-*- hey - emacs - this is a perl file
 
-# Copyright (c) 2021, PostgreSQL Global Development Group
+# src/tools/msvc/vcregress_ora.pl
 
-# src/tools/msvc/vcregress.pl
+# add the file for requirement "SQL PARSER"
 
 use strict;
 use warnings;
@@ -14,7 +14,6 @@ use File::Basename;
 use File::Copy;
 use File::Find ();
 use File::Path qw(rmtree);
-use File::Spec qw(devnull);
 
 use FindBin;
 use lib $FindBin::RealBin;
@@ -31,13 +30,11 @@ my $tmp_installdir = "$topdir/tmp_install";
 do './src/tools/msvc/config_default.pl';
 do './src/tools/msvc/config.pl' if (-f 'src/tools/msvc/config.pl');
 
-my $devnull = File::Spec->devnull;
-
 # These values are defaults that can be overridden by the calling environment
-# (see buildenv.pl processing below).  We assume that the ones listed here
-# always exist by default.  Other values may optionally be set for bincheck
-# or taptest, see set_command_env() below.
+# (see buildenv.pl processing below).
 # c.f. src/Makefile.global.in and configure.ac
+$ENV{GZIP_PROGRAM} ||= 'gzip';
+$ENV{LZ4} ||= 'lz4';
 $ENV{TAR} ||= 'tar';
 
 # buildenv.pl is for specifying the build environment settings
@@ -64,10 +61,11 @@ else
 # use a capital C here because config.pl has $config
 my $Config = -e "release/postgres/postgres.exe" ? "Release" : "Debug";
 
-copy("$Config/refint/refint.dll",                 "src/test/regress");
-copy("$Config/autoinc/autoinc.dll",               "src/test/regress");
-copy("$Config/regress/regress.dll",               "src/test/regress");
-copy("$Config/dummy_seclabel/dummy_seclabel.dll", "src/test/regress");
+copy("$Config/refint/refint.dll",                 "src/oracle_test/regress");
+copy("$Config/autoinc/autoinc.dll",               "src/oracle_test/regress");
+copy("$Config/oraregress/oraregress.dll",         "src/oracle_test/regress");
+copy("$Config/oraregress/oraregress.dll",         "src/oracle_test/regress/regress.dll");	# BUGM0000294 : because of contrib/dblink
+copy("$Config/dummy_seclabel/dummy_seclabel.dll", "src/oracle_test/regress");
 
 # Configuration settings used by TAP tests
 $ENV{with_ssl} = $config->{openssl} ? 'openssl' : 'no';
@@ -96,7 +94,7 @@ my $temp_config = "";
 $temp_config = "--temp-config=\"$ENV{TEMP_CONFIG}\""
   if $ENV{TEMP_CONFIG};
 
-chdir "src/test/regress";
+chdir "src/oracle_test/regress";
 
 my %command = (
 	CHECK          => \&check,
@@ -121,33 +119,6 @@ exit 0;
 
 ########################################################################
 
-# Helper function for set_command_env, to set one environment command.
-sub set_single_env
-{
-	my $envname    = shift;
-	my $envdefault = shift;
-
-	# If a command is defined by the environment, just use it.
-	return if (defined($ENV{$envname}));
-
-	# Nothing is defined, so attempt to assign a default.  The command
-	# may not be in the current environment, hence check if it can be
-	# executed.
-	my $rc = system("$envdefault --version >$devnull 2>&1");
-
-	# Set the environment to the default if it exists, else leave it.
-	$ENV{$envname} = $envdefault if $rc == 0;
-	return;
-}
-
-# Set environment values for various command types.  These can be used
-# in the TAP tests.
-sub set_command_env
-{
-	set_single_env('GZIP_PROGRAM', 'gzip');
-	set_single_env('LZ4',          'lz4');
-}
-
 sub installcheck_internal
 {
 	my ($schedule, @EXTRA_REGRESS_OPTS) = @_;
@@ -158,11 +129,13 @@ sub installcheck_internal
 	$schedule = 'parallel'            if $schedule eq 'serial';
 
 	my @args = (
-		"../../../$Config/pg_regress/pg_regress",
+		"../../../$Config/ora_regress/ora_regress",
 		"--dlpath=.",
 		"--bindir=../../../$Config/psql",
 		"--schedule=${schedule}_schedule",
-		"--max-concurrent-tests=20");
+		"--max-concurrent-tests=20",
+		"--encoding=utf-8",
+		"--no-locale");	# ReqID:SRS-SQL-ESCAPECHAR
 	push(@args, $maxconn) if $maxconn;
 	push(@args, @EXTRA_REGRESS_OPTS);
 	system(@args);
@@ -188,16 +161,18 @@ sub check
 	$schedule = 'parallel'            if $schedule eq 'serial';
 
 	InstallTemp();
-	chdir "${topdir}/src/test/regress";
+	chdir "${topdir}/src/oracle_test/regress";
+	# Begin - ReqID:SRS-SQL-ESCAPECHAR
 	my @args = (
-		"../../../$Config/pg_regress/pg_regress",
+		"../../../$Config/ora_regress/ora_regress",
 		"--dlpath=.",
 		"--bindir=",
 		"--schedule=${schedule}_schedule",
 		"--max-concurrent-tests=20",
-		"--encoding=SQL_ASCII",
+		"--encoding=utf-8",
 		"--no-locale",
 		"--temp-instance=./tmp_check");
+	# End - ReqID:SRS-SQL-ESCAPECHAR
 	push(@args, $maxconn)     if $maxconn;
 	push(@args, $temp_config) if $temp_config;
 	system(@args);
@@ -210,14 +185,14 @@ sub ecpgcheck
 {
 	my $msbflags = $ENV{MSBFLAGS} || "";
 	chdir $startdir;
-	system("msbuild ecpg_regression.proj $msbflags /p:config=$Config");
+	system("msbuild ora_ecpg_regression.proj $msbflags /p:config=$Config");
 	my $status = $? >> 8;
 	exit $status if $status;
 	InstallTemp();
-	chdir "$topdir/src/interfaces/ecpg/test";
+	chdir "$topdir/src/interfaces/ecpg/oracle_test";
 	my $schedule = "ecpg";
 	my @args     = (
-		"../../../../$Config/pg_regress_ecpg/pg_regress_ecpg",
+		"../../../../$Config/ora_regress_ecpg/ora_regress_ecpg",
 		"--bindir=",
 		"--dbname=ecpg1_regression,ecpg2_regression",
 		"--create-role=regress_ecpg_user1,regress_ecpg_user2",
@@ -235,10 +210,10 @@ sub ecpgcheck
 sub isolationcheck
 {
 	chdir "../isolation";
-	copy("../../../$Config/isolationtester/isolationtester.exe",
-		"../../../$Config/pg_isolation_regress");
+	copy("../../../$Config/ora_isolationtester/ora_isolationtester.exe",
+		"../../../$Config/ora_isolation_regress");
 	my @args = (
-		"../../../$Config/pg_isolation_regress/pg_isolation_regress",
+		"../../../$Config/ora_isolation_regress/ora_isolation_regress",
 		"--bindir=../../../$Config/psql",
 		"--inputdir=.",
 		"--schedule=./isolation_schedule");
@@ -268,7 +243,7 @@ sub tap_check
 
 	# Fetch and adjust PROVE_TESTS, applying glob() to each element
 	# defined to build a list of all the tests matching patterns.
-	my $prove_tests_val = $ENV{PROVE_TESTS} || "t/*.pl";
+	my $prove_tests_val = $ENV{PROVE_TESTS} || "ora_t/*.pl";
 	my @prove_tests_array = split(/\s+/, $prove_tests_val);
 	my @prove_tests = ();
 	foreach (@prove_tests_array)
@@ -284,9 +259,9 @@ sub tap_check
 
 	# adjust the environment for just this test
 	local %ENV = %ENV;
-	$ENV{PERL5LIB}      = "$topdir/src/test/perl;$ENV{PERL5LIB}";
-	$ENV{PG_REGRESS}    = "$topdir/$Config/pg_regress/pg_regress";
-	$ENV{REGRESS_SHLIB} = "$topdir/src/test/regress/regress.dll";
+	$ENV{PERL5LIB}   = "$topdir/src/oracle_test/perl;$ENV{PERL5LIB}";
+	$ENV{PG_REGRESS} = "$topdir/$Config/ora_regress/ora_regress";
+	$ENV{REGRESS_SHLIB} = "$topdir/src/oracle_test/regress/oraregress.dll";
 
 	$ENV{TESTDIR} = "$dir";
 	my $module = basename $dir;
@@ -303,8 +278,6 @@ sub bincheck
 {
 	InstallTemp();
 
-	set_command_env();
-
 	my $mstat = 0;
 
 	# Find out all the existing TAP tests by looking for t/ directories
@@ -314,7 +287,7 @@ sub bincheck
 	# Process each test
 	foreach my $dir (@bin_dirs)
 	{
-		next unless -d "$dir/t";
+		next unless -d "$dir/ora_t";
 		my $status = tap_check($dir);
 		$mstat ||= $status;
 	}
@@ -333,14 +306,11 @@ sub taptest
 		$dir = shift;
 	}
 
-	die "no tests found!" unless -d "$topdir/$dir/t";
+	die "no tests found!" unless -d "$topdir/$dir/ora_t";
 
 	push(@args, "$topdir/$dir");
 
 	InstallTemp();
-
-	set_command_env();
-
 	my $status = tap_check(@args);
 	exit $status if $status;
 	return;
@@ -403,17 +373,17 @@ sub plcheck
 	{
 		next unless -d "$dir/sql" && -d "$dir/expected";
 		my $lang;
-		if ($dir eq 'plpgsql/src')
+		if ($dir eq 'plisql/src')
 		{
-			$lang = 'plpgsql';
+			$lang = 'plisql';
 		}
 		elsif ($dir eq 'tcl')
 		{
-			$lang = 'pltcl';
+			next;
 		}
 		else
 		{
-			$lang = $dir;
+			$lang = $dir;	# BUGM0000301
 		}
 		if ($lang eq 'plpython')
 		{
@@ -443,7 +413,7 @@ sub plcheck
 			use Config;
 			if ($Config{usemultiplicity} eq 'define')
 			{
-				push(@tests, 'plperl_plperlu');
+				push(@tests, 'ivy_plperl_plperlu');		# BUGM0000301
 			}
 		}
 		elsif ($lang eq 'plpythonu' && -d "$topdir/$Config/plpython3")
@@ -458,7 +428,7 @@ sub plcheck
 		  "============================================================\n";
 		print "Checking $lang\n";
 		my @args = (
-			"$topdir/$Config/pg_regress/pg_regress",
+			"$topdir/$Config/ora_regress/ora_regress",
 			"--bindir=$topdir/$Config/psql",
 			"--dbname=pl_regression", @lang_args, @tests);
 		system(@args);
@@ -519,7 +489,7 @@ sub subdircheck
 	print "============================================================\n";
 	print "Checking $module\n";
 	my @args = (
-		"$topdir/$Config/pg_regress/pg_regress",
+		"$topdir/$Config/ora_regress/ora_regress",
 		"--bindir=${topdir}/${Config}/psql",
 		"--dbname=contrib_regression", @opts, @tests);
 	print join(' ', @args), "\n";
@@ -538,11 +508,8 @@ sub contribcheck
 		next if ($module eq "uuid-ossp"  && !defined($config->{uuid}));
 		next if ($module eq "sslinfo"    && !defined($config->{openssl}));
 		next if ($module eq "xml2"       && !defined($config->{xml}));
-		next if ($module =~ /_plperl$/   && !defined($config->{perl}));
-		next if ($module =~ /_plpython$/ && !defined($config->{python}));
 		next if ($module eq "sepgsql");
-		# Native PostgreSQL does not perform the test of ivorysql_ora.
-		next if ($module eq "ivorysql_ora");
+		next if ($module eq "gb18030_2022");	# BUGM0000294
 
 		subdircheck($module);
 		my $status = $? >> 8;
@@ -554,7 +521,7 @@ sub contribcheck
 
 sub modulescheck
 {
-	chdir "../../../src/test/modules";
+	chdir "../../../src/oracle_test/modules";
 	my $mstat = 0;
 	foreach my $module (glob("*"))
 	{
@@ -571,7 +538,7 @@ sub recoverycheck
 	InstallTemp();
 
 	my $mstat  = 0;
-	my $dir    = "$topdir/src/test/recovery";
+	my $dir    = "$topdir/src/oracle_test/recovery";
 	my $status = tap_check($dir);
 	exit $status if $status;
 	return;
@@ -581,10 +548,12 @@ sub recoverycheck
 sub standard_initdb
 {
 	return (
+		# Begin - ReqID:SRS-SQL-ESCAPECHAR
 		#BEGIN - SQL PARSER
-		system('initdb', '-N', '-m', 'pg', '-c', 'normal') == 0 and system(
+		system('initdb', '-N', '-m', 'oracle', '-c', 'normal', '-E', 'utf-8') == 0 and system(
 		#END - SQL PARSER
-			"$topdir/$Config/pg_regress/pg_regress", '--config-auth',
+		# End - ReqID:SRS-SQL-ESCAPECHAR
+			"$topdir/$Config/ora_regress/ora_regress", '--config-auth',
 			$ENV{PGDATA}) == 0);
 }
 
@@ -637,6 +606,10 @@ sub upgradecheck
 
 	$ENV{PGHOST} = 'localhost';
 	$ENV{PGPORT} ||= 50432;
+	
+	my $pg_port = "$ENV{PGPORT}";
+	my $ora_port = $pg_port + 1;
+	
 	my $tmp_root = "$topdir/src/bin/pg_upgrade/tmp_check";
 	rmtree($tmp_root);
 	mkdir $tmp_root || die $!;
@@ -652,7 +625,7 @@ sub upgradecheck
 	my $data = "$tmp_root/data";
 	$ENV{PGDATA} = "$data.old";
 	my $outputdir          = "$tmp_root/regress";
-	my @EXTRA_REGRESS_OPTS = ("--outputdir=$outputdir");
+	my @EXTRA_REGRESS_OPTS = ("--port=$ora_port --outputdir=$outputdir");
 	mkdir "$outputdir" || die $!;
 
 	my $logdir = "$topdir/src/bin/pg_upgrade/log";
@@ -661,7 +634,7 @@ sub upgradecheck
 	print "\nRunning initdb on old cluster\n\n";
 	standard_initdb() or exit 1;
 	print "\nStarting old cluster\n\n";
-	my @args = ('pg_ctl', 'start', '-l', "$logdir/postmaster1.log");
+	my @args = ('pg_ctl', 'start', '-l', "$logdir/postmaster1.log", '-o', "-p $pg_port -o $ora_port");
 	system(@args) == 0 or exit 1;
 
 	print "\nCreating databases with names covering most ASCII bytes\n\n";
@@ -683,10 +656,10 @@ sub upgradecheck
 	print "\nSetting up new cluster\n\n";
 	standard_initdb() or exit 1;
 	print "\nRunning pg_upgrade\n\n";
-	@args = ('pg_upgrade', '-d', "$data.old", '-D', $data, '-b', $bindir);
+	@args = ('pg_upgrade', '-d', "$data.old", '-D', $data, '-b', $bindir, '-p', $pg_port, '-P', $pg_port, '-q', $ora_port, '-Q', $ora_port);
 	system(@args) == 0 or exit 1;
 	print "\nStarting new cluster\n\n";
-	@args = ('pg_ctl', '-l', "$logdir/postmaster2.log", 'start');
+	@args = ('pg_ctl', '-l', "$logdir/postmaster2.log", '-o', "-p $pg_port -o $ora_port", 'start');
 	system(@args) == 0 or exit 1;
 	print "\nDumping new cluster\n\n";
 	@args = ('pg_dumpall', '-f', "$tmp_root/dump2.sql");
@@ -724,7 +697,7 @@ sub fetchRegressOpts
 	my @opts;
 
 	$m =~ s{\\\r?\n}{}g;
-	if ($m =~ /^\s*REGRESS_OPTS\s*\+?=(.*)/m)
+	if ($m =~ /^\s*ORACLE_REGRESS_OPTS\s*\+?=(.*)/m)
 	{
 
 		# Substitute known Makefile variables, then ignore options that retain
@@ -768,7 +741,7 @@ sub fetchTests
 		return ();
 	}
 
-	if ($m =~ /^REGRESS\s*=\s*(.*)$/gm)
+	if ($m =~ /^ORA_REGRESS\s*=\s*(.*)$/gm)		# BUGM0000294
 	{
 		$t = $1;
 		$t =~ s/\s+/ /g;
@@ -820,7 +793,7 @@ sub InstallTemp
 sub usage
 {
 	print STDERR
-	  "Usage: vcregress.pl <mode> [ <arg>]\n\n",
+	  "Usage: vcregress_ora.pl <mode> [ <arg>]\n\n",
 	  "Options for <mode>:\n",
 	  "  bincheck       run tests of utilities in src/bin/\n",
 	  "  check          deploy instance and run regression tests on it\n",
@@ -828,10 +801,10 @@ sub usage
 	  "  ecpgcheck      run regression tests of ECPG\n",
 	  "  installcheck   run regression tests on existing instance\n",
 	  "  isolationcheck run isolation tests\n",
-	  "  modulescheck   run tests of modules in src/test/modules/\n",
+	  "  modulescheck   run tests of modules in src/oracle_test/modules/\n",
 	  "  plcheck        run tests of PL languages\n",
-	  "  recoverycheck  run recovery test suite\n",
-	  "  taptest        run an arbitrary TAP test set\n",
+	  "  recoverycheck  run recovery oracle_test suite\n",
+	  "  taptest        run an arbitrary TAP oracle_test set\n",
 	  "  upgradecheck   run tests of pg_upgrade\n",
 	  "\nOptions for <arg>: (used by check and installcheck)\n",
 	  "  serial         serial mode\n",

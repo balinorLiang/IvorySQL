@@ -313,23 +313,20 @@ sub mkvcbuild
 	$libpqwalreceiver->AddIncludeDir('src/interfaces/libpq');
 	$libpqwalreceiver->AddReference($postgres, $libpq);
 
-	my $libpq_testclient =
-	  $solution->AddProject('libpq_testclient', 'exe', 'misc',
-		'src/interfaces/libpq/test');
-	$libpq_testclient->AddFile(
-		'src/interfaces/libpq/test/libpq_testclient.c');
-	$libpq_testclient->AddIncludeDir('src/interfaces/libpq');
-	$libpq_testclient->AddReference($libpgport, $libpq);
-	$libpq_testclient->AddLibrary('ws2_32.lib');
+	# BEGIN - SQL PARSER
+	my $libparser_oracle =
+	  $solution->AddProject('liboracle_parser', 'dll', '',
+		'src/backend/oracle_parser');
+	$libparser_oracle->AddPrefixInclude('src/include/oracle_parser');
+	$libparser_oracle->AddFiles('src/backend/oracle_parser', 'ora_scan.l', 'ora_gram.y');
+	$libparser_oracle->AddReference($postgres);
 
-	my $libpq_uri_regress =
-	  $solution->AddProject('libpq_uri_regress', 'exe', 'misc',
-		'src/interfaces/libpq/test');
-	$libpq_uri_regress->AddFile(
-		'src/interfaces/libpq/test/libpq_uri_regress.c');
-	$libpq_uri_regress->AddIncludeDir('src/interfaces/libpq');
-	$libpq_uri_regress->AddReference($libpgport, $libpq);
-	$libpq_uri_regress->AddLibrary('ws2_32.lib');
+	my $plisql =
+	  $solution->AddProject('plisql', 'dll', 'PLs', 'src/pl/plisql/src');
+	$plisql->AddPrefixInclude('src/include/oracle_parser');
+	$plisql->AddFiles('src/pl/plisql/src', 'pl_gram.y');
+	$plisql->AddReference($postgres, $libparser_oracle);
+	# END - SQL PARSER
 
 	my $pgoutput = $solution->AddProject('pgoutput', 'dll', '',
 		'src/backend/replication/pgoutput');

@@ -1,8 +1,8 @@
 # -*-perl-*- hey - emacs - this is a perl file
 
-# Copyright (c) 2021, PostgreSQL Global Development Group
+# src/tools/msvc/vcregress_ora_pg.pl
 
-# src/tools/msvc/vcregress.pl
+# add the file for requirement "SQL PARSER"
 
 use strict;
 use warnings;
@@ -14,7 +14,6 @@ use File::Basename;
 use File::Copy;
 use File::Find ();
 use File::Path qw(rmtree);
-use File::Spec qw(devnull);
 
 use FindBin;
 use lib $FindBin::RealBin;
@@ -31,13 +30,11 @@ my $tmp_installdir = "$topdir/tmp_install";
 do './src/tools/msvc/config_default.pl';
 do './src/tools/msvc/config.pl' if (-f 'src/tools/msvc/config.pl');
 
-my $devnull = File::Spec->devnull;
-
 # These values are defaults that can be overridden by the calling environment
-# (see buildenv.pl processing below).  We assume that the ones listed here
-# always exist by default.  Other values may optionally be set for bincheck
-# or taptest, see set_command_env() below.
+# (see buildenv.pl processing below).
 # c.f. src/Makefile.global.in and configure.ac
+$ENV{GZIP_PROGRAM} ||= 'gzip';
+$ENV{LZ4} ||= 'lz4';
 $ENV{TAR} ||= 'tar';
 
 # buildenv.pl is for specifying the build environment settings
@@ -121,33 +118,6 @@ exit 0;
 
 ########################################################################
 
-# Helper function for set_command_env, to set one environment command.
-sub set_single_env
-{
-	my $envname    = shift;
-	my $envdefault = shift;
-
-	# If a command is defined by the environment, just use it.
-	return if (defined($ENV{$envname}));
-
-	# Nothing is defined, so attempt to assign a default.  The command
-	# may not be in the current environment, hence check if it can be
-	# executed.
-	my $rc = system("$envdefault --version >$devnull 2>&1");
-
-	# Set the environment to the default if it exists, else leave it.
-	$ENV{$envname} = $envdefault if $rc == 0;
-	return;
-}
-
-# Set environment values for various command types.  These can be used
-# in the TAP tests.
-sub set_command_env
-{
-	set_single_env('GZIP_PROGRAM', 'gzip');
-	set_single_env('LZ4',          'lz4');
-}
-
 sub installcheck_internal
 {
 	my ($schedule, @EXTRA_REGRESS_OPTS) = @_;
@@ -158,11 +128,13 @@ sub installcheck_internal
 	$schedule = 'parallel'            if $schedule eq 'serial';
 
 	my @args = (
-		"../../../$Config/pg_regress/pg_regress",
+		"../../../$Config/ora_pg_regress/ora_pg_regress",
 		"--dlpath=.",
 		"--bindir=../../../$Config/psql",
 		"--schedule=${schedule}_schedule",
-		"--max-concurrent-tests=20");
+		"--max-concurrent-tests=20",
+		"--encoding=SQL_ASCII",
+		"--no-locale");
 	push(@args, $maxconn) if $maxconn;
 	push(@args, @EXTRA_REGRESS_OPTS);
 	system(@args);
@@ -190,7 +162,7 @@ sub check
 	InstallTemp();
 	chdir "${topdir}/src/test/regress";
 	my @args = (
-		"../../../$Config/pg_regress/pg_regress",
+		"../../../$Config/ora_pg_regress/ora_pg_regress",
 		"--dlpath=.",
 		"--bindir=",
 		"--schedule=${schedule}_schedule",
@@ -285,7 +257,7 @@ sub tap_check
 	# adjust the environment for just this test
 	local %ENV = %ENV;
 	$ENV{PERL5LIB}      = "$topdir/src/test/perl;$ENV{PERL5LIB}";
-	$ENV{PG_REGRESS}    = "$topdir/$Config/pg_regress/pg_regress";
+	$ENV{PG_REGRESS}    = "$topdir/$Config/ora_pg_regress/ora_pg_regress";
 	$ENV{REGRESS_SHLIB} = "$topdir/src/test/regress/regress.dll";
 
 	$ENV{TESTDIR} = "$dir";
@@ -302,8 +274,6 @@ sub tap_check
 sub bincheck
 {
 	InstallTemp();
-
-	set_command_env();
 
 	my $mstat = 0;
 
@@ -338,9 +308,6 @@ sub taptest
 	push(@args, "$topdir/$dir");
 
 	InstallTemp();
-
-	set_command_env();
-
 	my $status = tap_check(@args);
 	exit $status if $status;
 	return;
@@ -458,7 +425,7 @@ sub plcheck
 		  "============================================================\n";
 		print "Checking $lang\n";
 		my @args = (
-			"$topdir/$Config/pg_regress/pg_regress",
+			"$topdir/$Config/ora_pg_regress/ora_pg_regress",
 			"--bindir=$topdir/$Config/psql",
 			"--dbname=pl_regression", @lang_args, @tests);
 		system(@args);
@@ -519,7 +486,7 @@ sub subdircheck
 	print "============================================================\n";
 	print "Checking $module\n";
 	my @args = (
-		"$topdir/$Config/pg_regress/pg_regress",
+		"$topdir/$Config/ora_pg_regress/ora_pg_regress",
 		"--bindir=${topdir}/${Config}/psql",
 		"--dbname=contrib_regression", @opts, @tests);
 	print join(' ', @args), "\n";
@@ -541,7 +508,6 @@ sub contribcheck
 		next if ($module =~ /_plperl$/   && !defined($config->{perl}));
 		next if ($module =~ /_plpython$/ && !defined($config->{python}));
 		next if ($module eq "sepgsql");
-		# Native PostgreSQL does not perform the test of ivorysql_ora.
 		next if ($module eq "ivorysql_ora");
 
 		subdircheck($module);
@@ -582,9 +548,9 @@ sub standard_initdb
 {
 	return (
 		#BEGIN - SQL PARSER
-		system('initdb', '-N', '-m', 'pg', '-c', 'normal') == 0 and system(
+		system('initdb', '-N', '-m', 'oracle', '-c', 'normal') == 0 and system(
 		#END - SQL PARSER
-			"$topdir/$Config/pg_regress/pg_regress", '--config-auth',
+			"$topdir/$Config/ora_pg_regress/ora_pg_regress", '--config-auth',
 			$ENV{PGDATA}) == 0);
 }
 
@@ -637,6 +603,10 @@ sub upgradecheck
 
 	$ENV{PGHOST} = 'localhost';
 	$ENV{PGPORT} ||= 50432;
+
+	my $pg_port = "$ENV{PGPORT}";
+	my $ora_port = $pg_port + 1;
+
 	my $tmp_root = "$topdir/src/bin/pg_upgrade/tmp_check";
 	rmtree($tmp_root);
 	mkdir $tmp_root || die $!;
@@ -661,7 +631,7 @@ sub upgradecheck
 	print "\nRunning initdb on old cluster\n\n";
 	standard_initdb() or exit 1;
 	print "\nStarting old cluster\n\n";
-	my @args = ('pg_ctl', 'start', '-l', "$logdir/postmaster1.log");
+	my @args = ('pg_ctl', 'start', '-l', "$logdir/postmaster1.log", '-o', "-p $pg_port -o $ora_port");
 	system(@args) == 0 or exit 1;
 
 	print "\nCreating databases with names covering most ASCII bytes\n\n";
@@ -683,10 +653,10 @@ sub upgradecheck
 	print "\nSetting up new cluster\n\n";
 	standard_initdb() or exit 1;
 	print "\nRunning pg_upgrade\n\n";
-	@args = ('pg_upgrade', '-d', "$data.old", '-D', $data, '-b', $bindir);
+	@args = ('pg_upgrade', '-d', "$data.old", '-D', $data, '-b', $bindir, '-p', $pg_port, '-P', $pg_port, '-q', $ora_port, '-Q', $ora_port, '--using-ora-pg');
 	system(@args) == 0 or exit 1;
 	print "\nStarting new cluster\n\n";
-	@args = ('pg_ctl', '-l', "$logdir/postmaster2.log", 'start');
+	@args = ('pg_ctl', '-l', "$logdir/postmaster2.log", '-o', "-p $pg_port -o $ora_port", 'start');
 	system(@args) == 0 or exit 1;
 	print "\nDumping new cluster\n\n";
 	@args = ('pg_dumpall', '-f', "$tmp_root/dump2.sql");
@@ -820,7 +790,7 @@ sub InstallTemp
 sub usage
 {
 	print STDERR
-	  "Usage: vcregress.pl <mode> [ <arg>]\n\n",
+	  "Usage: vcregress_ora_pg.pl <mode> [ <arg>]\n\n",
 	  "Options for <mode>:\n",
 	  "  bincheck       run tests of utilities in src/bin/\n",
 	  "  check          deploy instance and run regression tests on it\n",

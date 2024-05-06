@@ -31,7 +31,7 @@ if "%2" equ "" goto help
 >>config.pl		echo $config-^>{tcl} = '%2\deps\tcl85%up_x64%';
 >>config.pl		echo $config-^>{perl} = '%2\deps\perl520%up_x64%';
 >>config.pl		echo $config-^>{python} = '%2\deps\python27%up_x64%';
->>config.pl		echo $config-^>{nls} = '%2\deps\lib%up_x64%\gettext';
+>>config.pl		echo $config-^>{tap_tests} = '1';
 >>config.pl		echo $config-^>{openssl} = '%2\deps\lib%up_x64%\openssl';
 ::>>config.pl		echo $config-^>{uuid} = '%2\deps\lib%up_x64%\uuid';
 >>config.pl		echo $config-^>{xml} = '%2\deps\lib%up_x64%\libxml2';

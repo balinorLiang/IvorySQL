@@ -4,7 +4,7 @@
 package MSBuildProject;
 
 #
-# Package that encapsulates a MSBuild project file (Visual C++ 2015 or greater)
+# Package that encapsulates a MSBuild project file (Visual C++ 2013 or greater)
 #
 # src/tools/msvc/MSBuildProject.pm
 #
@@ -196,6 +196,10 @@ EOF
 			{
 				$outputFile =~
 				  s{^src\\pl\\plpgsql\\src\\gram.c$}{src\\pl\\plpgsql\\src\\pl_gram.c};
+				# BEGIN - SQL PARSER
+				$outputFile =~
+				  s{^src\\pl\\plisql\\src\\gram.c$}{src\\pl\\plisql\\src\\pl_gram.c};
+				# END - SQL PARSER
 				print $f <<EOF;
     <CustomBuild Include="$grammarFile">
       <Message Condition="'\$(Configuration)|\$(Platform)'=='Debug|$self->{platform}'">Running bison on $grammarFile</Message>
@@ -404,6 +408,31 @@ sub Footer
 </Project>
 EOF
 	return;
+}
+
+package VC2013Project;
+
+#
+# Package that encapsulates a Visual C++ 2013 project file
+#
+
+use strict;
+use warnings;
+use base qw(MSBuildProject);
+
+no warnings qw(redefine);    ## no critic
+
+sub new
+{
+	my $classname = shift;
+	my $self      = $classname->SUPER::_new(@_);
+	bless($self, $classname);
+
+	$self->{vcver}           = '12.00';
+	$self->{PlatformToolset} = 'v120';
+	$self->{ToolsVersion}    = '12.0';
+
+	return $self;
 }
 
 package VC2015Project;

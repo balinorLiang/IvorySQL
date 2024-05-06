@@ -32,6 +32,10 @@
 
 #include "utils/ora_compatible.h"
 
+#ifdef _MSC_VER
+#define strcasecmp stricmp
+#endif
+
 /* Location tracking support --- simpler than bison's default */
 #define YYLLOC_DEFAULT(Current, Rhs, N) \
 	do { \

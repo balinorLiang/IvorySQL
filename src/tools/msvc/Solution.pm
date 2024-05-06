@@ -1291,6 +1291,34 @@ sub GetFakeConfigure
 	return $cfg;
 }
 
+package VS2013Solution;
+
+#
+# Package that encapsulates a Visual Studio 2013 solution file
+#
+
+use Carp;
+use strict;
+use warnings;
+use base qw(Solution);
+
+no warnings qw(redefine);    ## no critic
+
+sub new
+{
+	my $classname = shift;
+	my $self      = $classname->SUPER::_new(@_);
+	bless($self, $classname);
+
+	$self->{solutionFileVersion}        = '12.00';
+	$self->{vcver}                      = '12.00';
+	$self->{visualStudioName}           = 'Visual Studio 2013';
+	$self->{VisualStudioVersion}        = '12.0.21005.1';
+	$self->{MinimumVisualStudioVersion} = '10.0.40219.1';
+
+	return $self;
+}
+
 package VS2015Solution;
 
 #
@@ -1363,13 +1391,13 @@ no warnings qw(redefine);    ## no critic
 sub new
 {
 	my $classname = shift;
-	my $self = $classname->SUPER::_new(@_);
+	my $self      = $classname->SUPER::_new(@_);
 	bless($self, $classname);
 
-	$self->{solutionFileVersion} = '12.00';
-	$self->{vcver} = '16.00';
-	$self->{visualStudioName} = 'Visual Studio 2019';
-	$self->{VisualStudioVersion} = '16.0.28729.10';
+	$self->{solutionFileVersion}        = '12.00';
+	$self->{vcver}                      = '16.00';
+	$self->{visualStudioName}           = 'Visual Studio 2019';
+	$self->{VisualStudioVersion}        = '16.0.28729.10';
 	$self->{MinimumVisualStudioVersion} = '10.0.40219.1';
 
 	return $self;
