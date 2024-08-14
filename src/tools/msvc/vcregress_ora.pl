@@ -264,6 +264,8 @@ sub tap_check
 	$ENV{REGRESS_SHLIB} = "$topdir/src/oracle_test/regress/oraregress.dll";
 
 	$ENV{TESTDIR} = "$dir";
+	$ENV{TESTDATADIR} = "$dir/tmp_check";
+	$ENV{TESTLOGDIR} = "$dir/tmp_check/log";
 	my $module = basename $dir;
 	# add the module build dir as the second element in the PATH
 	$ENV{PATH} =~ s!;!;$topdir/$Config/$module;!;

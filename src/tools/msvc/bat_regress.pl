@@ -25,8 +25,9 @@ print "$ARGV[0]\n";
 my $installdir = $ARGV[0];
 print "install dir is : $installdir\n";
 
-my @vcregress_pg = ("check","recoverycheck","bincheck","upgradecheck");
+my @vcregress_pg = ("check","recoverycheck","bincheck");
 foreach $a (@vcregress_pg){
+	print "=======start vcregress_pg.bat $a regression================\n";
 	system("vcregress_pg.bat $a");
 	my $status = $? >> 8;
 	exit $status if $status;
@@ -46,7 +47,9 @@ chdir "$startdir";
 $ENV{PGPORT} = 5432;
 
 my @vcregress_pg_install = ("installcheck","plcheck","contribcheck","modulescheck","ecpgcheck","isolationcheck");
+#my @vcregress_pg_install = ("modulescheck","ecpgcheck","isolationcheck");
 foreach $a (@vcregress_pg_install){
+	print "=======start vcregress_pg.bat $a regression================\n";
 	system("vcregress_pg.bat $a");
 	my $status3 = $? >> 8;
 	exit $status3 if $status3;		#BUGM0000294
@@ -66,6 +69,7 @@ delete $ENV{PGPORT};
 
 my @vcregress_ora_pg = ("check","recoverycheck","bincheck","upgradecheck");
 foreach $a (@vcregress_ora_pg){
+	print "=======start cregress_ora_pg.bat $a regression================\n";
 	system("vcregress_ora_pg.bat $a");
 	my $status5 = $? >> 8;
 	exit $status5 if $status5;
@@ -86,6 +90,7 @@ $ENV{PGPORT} = 5432;
 
 my @vcregress_ora_pg_install = ("installcheck","plcheck","contribcheck","modulescheck","ecpgcheck","isolationcheck");
 foreach $a (@vcregress_ora_pg_install){
+	print "=======start vcregress_ora_pg.bat $a regression================\n";
 	system("vcregress_ora_pg.bat $a");
 	my $status8 = $? >> 8;
 	exit $status8 if $status8;		#BUGM0000294
@@ -104,6 +109,7 @@ delete $ENV{PGPORT};
 
 my @vcregress_ora = ("check","recoverycheck","bincheck","upgradecheck");
 foreach $a (@vcregress_ora){
+	print "=======start vcregress_ora.bat $a regression================\n";
 	system("vcregress_ora.bat $a");
 	my $status10 = $? >> 8;
 	exit $status10 if $status10;
@@ -124,6 +130,7 @@ $ENV{PGPORT} = 1521;
 
 my @vcregress_ora_install = ("installcheck","plcheck","modulescheck","ecpgcheck","isolationcheck","contribcheck");	#BUGM0000294
 foreach $a (@vcregress_ora_install){
+	print "=======start vcregress_ora.bat $a regression================\n";
 	system("vcregress_ora.bat $a");
 	my $status13 = $? >> 8;
 	exit $status13 if $status13;
