@@ -57,7 +57,7 @@ jobs:
       run: make check
 
     - name: oracle_pg_regression
-      run: make oracle-pg-check
+      run: make oracle-pg-check-world
 
     - name: collect files
       if: failure()
